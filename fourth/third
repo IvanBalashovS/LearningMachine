@@ -1,0 +1,149 @@
+import numpy as np
+import pandas as pd
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, RANSACRegressor, TheilSenRegressor
+from sklearn.preprocessing import PolynomialFeatures
+import warnings
+from sklearn.preprocessing import TargetEncoder, OrdinalEncoder, OneHotEncoder, LabelEncoder, LabelBinarizer, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import make_pipeline
+
+warnings.filterwarnings("ignore")
+
+
+df = pd.read_csv('./fourth/Car Sell Dataset.csv')
+df.columns = df.columns.str.replace(' ', '_')
+
+
+print("Размер набора данных:", df.shape)
+print("\nТипы данных и количество пропусков:")
+print(df.info())
+print(df["Brand"].unique())
+print(df["Owner"].unique())
+
+alpha_values = [0.01, 0.1, 1, 10, 100, 10000]
+
+brand_import_status = {
+    'Audi': True,
+    'BMW': True,
+    'Jaguar': True,
+    'Range Rover': True,
+    'Chevrolet': True,
+    'Volkswagen': True,
+    'Skoda': True,
+    'MG': True,
+    'Kia': True,
+    'Nissan': True,
+    'Renault': True,
+    'Ford': True,
+    'Toyota': True,
+    
+    'Mahindra': False,
+    'Tata': False,
+    'Maruti Suzuki': False,
+    'Hyundai': False,
+    'Honda': False,
+}
+
+def categorize_mileage(kilometers):
+    if kilometers <= 20000:
+        return 'Новая'
+    elif kilometers <= 60000:
+        return 'Поношенная'
+    elif kilometers <= 110000:
+        return 'Среднего износа'
+    else:
+        return 'Очень изношена'
+
+df['Mileage_Category'] = df['Kilometers'].apply(categorize_mileage)
+
+df['Is_Imported'] = df['Brand'].map(brand_import_status)
+df['Car_Age'] = 2024 - df['Year']
+df.drop(columns=['Year'], inplace=True)
+
+X = df.drop(columns=["Price"])
+Y = df["Price"]
+
+print(Y.head())
+
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state=51, test_size=0.2)
+
+categorical_columns = [ 
+    ("Brand", "Производитель"),
+    ("Model_Name", "Модель"),
+    ("Model_Variant", "Комплектация"),
+    ("Car_Type", "Тип кузова"),    
+    ("Transmission", "Вид трансмиссии"),
+    ("Fuel_Type", "Вид топлива"),
+    ("Owner", "Количество владельцев"),
+    ("Accidental", "Была в аварии"),
+    ("Is_Imported", "Импортная машина"),
+    ("State", "Регион"),
+]
+
+numerical_columns = [
+    ("Car_Age", "Возраст автомобиля"),
+    ("Price", "Цена"),
+]
+
+categorical_big_cols = ['Brand', 'Model_Name', 'Model_Variant', 'State']
+
+ordinal_columns = ['Owner']
+ordinals_order = [["1st", "2nd", "3rd+"]]
+
+categorical_columns = ['Car_Type', 'Transmission', 'Fuel_Type', 'Accidental', 'Is_Imported', 'Mileage_Category',]
+
+numerical_columns = [ "Car_Age", "Kilometers"]
+
+tranformer = ColumnTransformer(transformers=[
+    ("categorical", OneHotEncoder(drop="first"), categorical_columns),
+    ("cat", TargetEncoder(target_type="continuous"), categorical_big_cols),
+    ("ordinal", OrdinalEncoder(categories=ordinals_order), ordinal_columns),
+    ("numeric", StandardScaler(), numerical_columns),
+],
+remainder="drop")# Остальные столбцы отбрасываются
+
+X_train_transformed = tranformer.fit_transform(X_train, Y_train)
+X_test_transformed = tranformer.transform(X_test)
+
+Y_test_transformed = Y_test
+Y_train_transformed = Y_train
+
+for alpha in alpha_values:
+    print(alpha)
+    models = {
+        "Linear Regression": LinearRegression(n_jobs=-1),
+        "Lasso Regression": Lasso(alpha=alpha),
+        "Ridge Regression": Ridge(alpha=alpha),
+        "Polynomial Regression": PolynomialFeatures(degree=2)
+    }
+    results = {}
+    for name, model in models.items():
+        model.fit(X_train_transformed, Y_train_transformed)
+
+        if name == "Polynomial Regression":
+            model = make_pipeline(model, Ridge(alpha=alpha))
+            model.fit(X_train_transformed, Y_train_transformed)
+            
+            Y_train_pred = model.predict(X_train_transformed)
+            Y_test_pred = model.predict(X_test_transformed)
+        else:
+            model.fit(X_train_transformed, Y_train_transformed)
+            
+            Y_train_pred = model.predict(X_train_transformed)
+            Y_test_pred = model.predict(X_test_transformed)
+        
+        mse = root_mean_squared_error(Y_test_transformed, Y_test_pred)
+        r2 = r2_score(Y_test_transformed, Y_test_pred)
+        r2_train = r2_score(Y_train_transformed, Y_train_pred)
+        
+        results[name] = {"RMSE": mse, "R2 Score Train": r2_train, "R2 Score": r2}
+
+    results_df = pd.DataFrame(results).T.sort_values(by="R2 Score", ascending=False)
+    print(results_df) 
