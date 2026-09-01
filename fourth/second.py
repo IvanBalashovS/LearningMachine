@@ -13,6 +13,9 @@ x = np.random.uniform(x_min, x_max, 30)
 center = x * b + np.random.normal(0, 1, 30)
 x = np.append(x, [-5, 0, 5, 10, 15, 20, 25, 30, 31])
 center = np.append(center, [-12, -20, -30, -20, -30, -35, 20, -1, 30])
+scaler = StandardScaler()
+
+
 
 modelLinRegr = LinearRegression()
 modelLinRegr.fit(x[:,None], center)

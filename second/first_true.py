@@ -26,7 +26,7 @@ if __name__ == '__main__':
     train_size=400,)
 
     with ignore_warnings(category=ConvergenceWarning):
-        for i in range(4, 7):
+        for i in range(4, 6):
             print(f"Степень {i}")
             alphas = np.linspace(0.001, 5, 10)
             for alpha in alphas: 
